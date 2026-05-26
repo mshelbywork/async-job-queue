@@ -1,65 +1,72 @@
 import asyncio, random
+import time
 
 jobs = {}
 
 #create ID, generate random completion time + success_rate
-def create_jobs ()-> dict:
+def create_jobs (job_count)-> dict:
     job_id = 1
+    
     #Don't want random id's because of collision risk+tracability, I think also serialization?
-    while True:
+    while job_id <= job_count:
+
         completion_time = random.randint(1,12)
         success_rate = random.random()
-        jobs[f'job id: {job_id}'] = (completion_time, success_rate)
+        jobs[f'job id- {job_id}'] = (completion_time, success_rate)
         yield jobs
-        job_id =+ 1
+        job_id += 1
 
-''' Alright, I'm thinking about nesting a while loop in a while loop.
-The inner loop checks for jobs every n seconds the outer loop runs until
-the scheduler says all jobs are complete or have timed-out. I'll have
-to await so it doesn't block the event loop.
-
-'''
-
-#periodically checks for tasks then assigns them out
-#once all jobs are complete or have timed out return something to end the loop
-async def task_queue ()-> str:
-    queue = list(jobs)
-    assigned = []
-    completed = []
-
-
-
-
-
-
-
-
-'''maybe I can model job success by generating a random float and if
-chance is >= success_rate the job fails. (raise some error)
-'''    
-async def worker(jobs: dict):
-    completion_time, success_rate, job_id = [*jobs][0]
-
-    await asyncio.sleep(completion_time)
+#take jobs dict unpack and run job. return pass/fail
+async def worker(single_job: dict)-> dict:
+    tasks = {}
+    for k, v in single_job.items():
+        job_id = k
+        completetion_time, success_rate = v
+    await asyncio.sleep(completetion_time)
     failure_rate = random.random()
     if failure_rate > success_rate:
-        print f'Job: {job_id} failed'
-        return tasks[job_id]= False
-    print f'Job:{job_id} complete'
-    return tasks[job_id]= True
+        print (f'Job: {job_id} failed')
+        tasks[job_id]= False
+        return tasks
+    print (f'Job:{job_id} complete')
+    tasks[job_id]= True
+    return tasks
 
-'''while jobs are available spawn workers, what happens if
-two workers are working the same job?I think I'll try a queue of jobs
-I'm not really sure how to solve this because I can't guarentee to 
-workers don't start the same job, but then again does the program crash
-if you try to pop a element that is already gone? I wonder can I
-try/except the worker and on no element to pop do nothing?'''
-async def main (): #I'll have to figure out how many jobs to spawn
+#Assign worker() coroutine tasks form queue. update assigned, clear queue. 
+async def scheduler (jobs: dict):
+    queue =[]
+    assigned = []
+
+    queue = [{k: v} for k, v in jobs.items()]
+    coroutine = ( worker(x) for x in queue)
+    active_tasks =[]
+    for x in coroutine:
+        active_tasks.append (asyncio.create_task (x))
+
+    assigned = queue
+    queue = []
+
+    return active_tasks
+
+
+
+async def collect_work (workers) -> None:
+    for coro in asyncio.as_completed(workers):
+        result = await coro
+        print(result)
     
-    while jobs:
-        pass
     
-    await asycnio.gather (some_gen_workers_function)
+    
+# run the functions collect the workers
+async def main ():
+    start = time.perf_counter ()
+    for x in create_jobs (20):
+        created_work = jobs
 
+    active_tasks= await scheduler (created_work)
+    await collect_work (active_tasks)
 
-    active_workers =+ 1
+    end = time.perf_counter ()
+    print (f'System runtime: {end-start}')
+if __name__ == '__main__':
+    asyncio.run (main())
